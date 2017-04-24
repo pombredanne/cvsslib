@@ -1,3 +1,5 @@
+import operator
+
 from cvsslib import cvss3, cvss2
 from cvsslib.utils import get_enums, run_calc
 
@@ -16,22 +18,10 @@ def detect_vector(vector):
     return module
 
 
-def sorted_vector(vector):
-    replaced = False
-    if vector.startswith("CVSS:3.0/"):
-        vector = vector.replace("CVSS:3.0/", "")
-        replaced = True
-
-    vector = "/".join(sorted(vector.split("/")))
-
-    if replaced:
-        vector = "CVSS:3.0/" + vector
-
-    return vector
-
-
 def to_vector(module, getter):
     vectors = []
+
+    ordering = getattr(module, 'ORDERING', None)
 
     for name, enum in get_enums(module):
         enum_attr = getter(enum)
@@ -42,9 +32,16 @@ def to_vector(module, getter):
         if key is None:
             continue
 
-        vectors.append("{0}:{1}".format(vector, key))
+        vectors.append((vector, key, ordering.index(enum) if ordering else None))
 
-    res = "/".join(sorted(vectors))
+    if ordering:
+        vectors = sorted(vectors, key=operator.itemgetter(2))
+        vectors = ("{0}:{1}".format(vector, key) for vector, key, _ in vectors)
+    else:
+        vectors = ("{0}:{1}".format(vector, key) for vector, key, _ in vectors)
+        vectors = sorted(vectors)
+
+    res = "/".join(vectors)
     if module is cvss3:
         res = "CVSS:3.0/" + res
 
